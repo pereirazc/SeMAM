@@ -1,0 +1,78 @@
+package br.ufes.inf.lprm.semam.model.situation;
+
+
+import br.ufes.inf.lprm.situation.*;
+import br.ufes.inf.lprm.scene.base.*;
+import br.ufes.inf.lprm.scene.base.evaluators.*;
+import br.ufes.inf.lprm.semam.model.*;
+import br.ufes.inf.lprm.semam.model.event.*;
+
+declare Assignment
+	@role(event)
+end
+
+declare EmergencyCall
+	@role(event)
+end
+
+rule "OngoingEmergencyCare"
+@role(situation)
+@type(OngoingEmergencyCare)
+	when
+		$patient: Patient(alive == true)
+		$ambulance: Ambulance()
+		Assignment(patient == $patient, ambulance == $ambulance)
+		EmergencyCall(patient == $patient, status == "BEING_TREATED")
+	then
+		SituationHelper.situationDetected(drools);
+end
+
+rule "Tachycardia"
+@role(situation)
+@type(Tachycardia)
+	when
+		OngoingEmergencyCare($patient: patient)
+		Patient(this == $patient, heartRate > 100)
+	then
+		SituationHelper.situationDetected(drools);
+end
+
+rule "CardiacArrest"
+@role(situation)
+@type(CardiacArrest)
+	when
+		OngoingEmergencyCare($patient: patient)
+		Patient(this == $patient, heartRate == 0)
+	then
+		SituationHelper.situationDetected(drools);
+end
+
+rule "Bradycardia"
+@role(situation)
+@type(Bradycardia)
+	when
+		OngoingEmergencyCare($patient: patient)
+		Patient(this==$patient, heartRate > 0 && < 60 )
+	then
+		SituationHelper.situationDetected(drools);
+end
+
+rule "HelpRequest"
+@role(situation)
+@type(HelpRequest)
+	when
+		$call: EmergencyCall($patient: patient, status =="RECEIVED" || =="ASSIGNED")
+		$volunteer: Volunteer(available==true, near[200m] $patient)
+	then
+		SituationHelper.situationDetected(drools);
+end
+
+rule "HighUrgency"
+@role(situation)
+@type(HighUrgency)
+	when
+		$ca: CardiacArrest($patient: patient)
+		not (exists (ActivateSituationEvent(situation==$ca) over window:time( 3m )))
+	then
+		SituationHelper.situationDetected(drools);
+end
